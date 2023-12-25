@@ -10,7 +10,7 @@ from lxml import etree
 
 from collector._base.client import Client, NamespacedClient
 from collector._exception import NetworkError, RetrieveUserError
-from collector.fanbox.datamodel import Creator, Newsletter, Plan, Post, User
+from collector.fanbox.models import Creator, Newsletter, Plan, Post, User
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -142,7 +142,7 @@ class _FanboxCreatorClient(NamespacedClient[Fanbox]):
             Newsletter:
                 The creator's newsletters.
         """
-        async for newsletter in self._base.newsletter.iterate():
+        async for newsletter in self._base.newsletter.iterate_received():
             if newsletter.creator == creator_id:
                 yield newsletter
 
@@ -234,7 +234,7 @@ class _FanboxNewsletterClient(NamespacedClient[Fanbox]):
             raise err
         return Newsletter.from_response(response.json().get("body"))
 
-    async def iterate(self) -> AsyncIterator[Newsletter]:
+    async def iterate_received(self) -> AsyncIterator[Newsletter]:
         """Iterate all received newsletters.
 
         Yields:

@@ -3,18 +3,31 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from lxml import etree
 from lxml.builder import E
 from pydantic import Field, HttpUrl, root_validator
 
-from collector._base import datamodel as base
-from collector._base.datamodel import Price
+from collector._base import models as base
+from collector._base.models import Price
+from collector._base.post import File, Image, Paragraph
 
 if TYPE_CHECKING:
-    from lxml.builder import ElementMaker
+    from lxml.etree import _Element
+
+    from collector._base.models import Segment
 
 
 class User(base.User):
+    """The user of pixivFANBOX.
+
+    Attributes:
+        id (str):
+            The user ID.
+        name (str):
+            The user name.
+        avatar (HttpUrl):
+            The URL of the user's avatar.
+    """
+
     id: str = Field(..., alias="userId")
     avatar: HttpUrl = Field(..., alias="iconUrl")
 
@@ -61,28 +74,23 @@ class Post(base.Post):
 
     @root_validator(pre=True)
     @classmethod
-    def _build_content(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def _build_body(cls, values: dict[str, Any]) -> dict[str, Any]:
         try:
-            result = getattr(cls, f"_build_{values['type']}_content")(values["body"])
-        except AttributeError:
-            raise NotImplementedError(f"Unknown post type: {values['type']}")
+            result = getattr(cls, f"_build_{values['type']}_body")(values["body"])
+        except AttributeError as err:
+            raise NotImplementedError(f"Unknown post type: {values['type']}") from err
 
-        values["content"] = etree.tostring(
-            E.body(*result),
-            encoding="utf-8",  # type: ignore
-            pretty_print=True,  # type: ignore
-        )
-
+        values["body"] = result
         return values
 
     @staticmethod
-    def _build_article_content(data: dict[str, Any]) -> list["ElementMaker"]:
-        result: list["ElementMaker"] = []
+    def _build_article_body(data: dict[str, Any]) -> list["Segment"]:
+        result: list["Segment"] = []
 
         for block in data["blocks"]:
             match block["type"]:
                 case "p":
-                    segments: list["str | ElementMaker"] = []
+                    segments: list["str | _Element"] = []
                     cur_string = block["text"]
 
                     if "styles" in block:
@@ -101,19 +109,32 @@ class Post(base.Post):
                     else:
                         segments.append(cur_string)
 
-                    result.append(E.p(*segments))
+                    result.append(Paragraph(text=E.p(*segments)))
                 case "header":
-                    result.append(E.h2(block["text"]))
+                    result.append(Paragraph(text=E.h2(block["text"])))
                 case "url_embed":
                     url = data["urlEmbedMap"][block["urlEmbedId"]]["url"]
                     result.append(
                         E.a(data["urlEmbedMap"][block["urlEmbedId"]]["host"], href=url)
                     )
                 case "image":
-                    image_id = block["imageId"]
+                    image_data = data["imageMap"][block["imageId"]]
                     result.append(
-                        E.img(
-                            src=data["imageMap"][image_id]["originalUrl"], alt=image_id
+                        Image(
+                            id=image_data["id"],
+                            url=image_data["originalUrl"],
+                            name=f"{image_data['id']}.{image_data['extension']}",
+                            thumbnail=image_data["thumbnailUrl"],
+                        )
+                    )
+                case "file":
+                    file_data = data["fileMap"][block["fileId"]]
+                    result.append(
+                        File(
+                            id=file_data["id"],
+                            url=file_data["url"],
+                            name=f"{file_data['name']}.{file_data['extension']}",
+                            size=file_data["size"],
                         )
                     )
                 case _:
@@ -122,14 +143,20 @@ class Post(base.Post):
         return result
 
     @staticmethod
-    def _build_image_content(data: dict[str, Any]) -> list["ElementMaker"]:
-        result: list["ElementMaker"] = []
-
-        for image in data["images"]:
-            result.append(E.img(src=image["originalUrl"], alt=image["id"]))
+    def _build_image_body(data: dict[str, Any]) -> list["Segment"]:
+        result: list["Segment"] = [
+            Image(
+                id=image["id"],
+                url=image["originalUrl"],
+                name=f"{image['id']}.{image['extension']}",
+                thumbnail=image["thumbnailUrl"],
+            )
+            for image in data["images"]
+        ]
         if "text" in data:
-            result.append(E.p(data["text"]))
-
+            result.extend(
+                Paragraph(text=E.p(line)) for line in data["text"].splitlines()
+            )
         return result
 
 

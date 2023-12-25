@@ -14,28 +14,26 @@ from collector._log import logger
 from collector._utils import parse_duration
 
 if TYPE_CHECKING:
-    from collector._base.datamodel import User
+    from collector._base.models import User
 
 
 class Client(abc.ABC):
     """The base class for clients that collect data from subscription-based platforms.
 
-    All clients should be implemented as a subclass of this class.
+    All client implementations should inherit this class and implement all abstract
+    methods.
 
-    It is responsible for creating a session to send requests to the platform's server.
-    Client implementations must credentials (e.g. cookies or access token) to create a
-    session which will enable to access the data from the server.
+    The clients are used to create sessions that make requests to the servers and
+    retrieve data. Credentials such as cookies or access tokens are required to create
+    sessions, ensuring that the sessions are able to access to the platforms' data.
 
-    The clients support response caching for improving the performance and reducing the
-    network traffic. All responses will be cached forcibly when the response caching is
-    enabled, regardless of whether the server disables the caching.
+    The clients support response caching (defaults to enable) for improving the
+    performance and reducing the network traffic. All responses will be cached forcibly
+    when the response caching is enabled, regardless of whether the server disables the
+    caching.
     """
 
-    def __init__(
-        self,
-        cache: bool | int | str = True,
-        **config: Any,
-    ) -> None:
+    def __init__(self, cache: bool | int | str = True, **config: Any) -> None:
         """Initialize the client.
 
         Args:

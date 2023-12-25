@@ -2,17 +2,15 @@ from datetime import datetime
 from typing import Annotated, Any
 from typing_extensions import Self
 
-from lxml import html
 from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
     Field,
     HttpUrl,
-    computed_field,
 )
-from pydantic.alias_generators import to_snake
 
+from collector._base.post import PostBody, Segment
 from collector._base.utils import Price
 
 
@@ -21,7 +19,7 @@ class DataModel(BaseModel):
 
     id: str
 
-    model_config = ConfigDict(extra="ignore", alias_generator=to_snake)
+    model_config = ConfigDict(extra="ignore", arbitrary_types_allowed=True)
 
     @classmethod
     def from_response(cls, response: dict[str, Any]) -> Self:
@@ -72,25 +70,14 @@ class DirectMessage(DataModel):
     message: str | None = Field(repr=False)
 
 
-def _to_post_content(raw: str) -> "PostContent":
-    return PostContent(raw=raw)
-
-
-class PostContent(BaseModel):
-    raw: str
-
-    @computed_field
-    @property
-    def images(self) -> list[HttpUrl]:
-        return list(html.fromstring(self.raw).xpath("//img/@src"))
+def _to_post_body(data: list[Segment]) -> "PostBody":
+    return PostBody(data)
 
 
 class Post(DataModel):
     title: str
     creator: str
-    content: Annotated[PostContent, BeforeValidator(_to_post_content)] = Field(
-        repr=False
-    )
+    body: Annotated[PostBody, BeforeValidator(_to_post_body)] = Field(repr=False)
     published_time: datetime
     updated_time: datetime | None = None
     cover: HttpUrl | None = Field(repr=False)

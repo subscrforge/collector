@@ -26,10 +26,12 @@ class Price(BaseModel):
 
 
 class _EventHooksMeta(type):
-    def __getattr__(cls, name: Literal["on_request", "on_response"]) -> list[EventHook]:
+    def __getattr__(
+        self, name: Literal["on_request", "on_response"]
+    ) -> list[EventHook]:
         hooks = []
 
-        for _, func in inspect.getmembers(cls, predicate=inspect.isfunction):
+        for _, func in inspect.getmembers(self, predicate=inspect.isfunction):
             signature = inspect.signature(func)
             if signature.parameters.get(name.strip("on_")):
                 hooks.append(func)
