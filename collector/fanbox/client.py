@@ -1,12 +1,13 @@
 """The client for pixivFANBOX."""
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
-from os import PathLike
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from httpx import ConnectTimeout, HTTPStatusError
 from lxml import etree
+from pydantic import HttpUrl, TypeAdapter
 
 from collector._base.client import Client, NamespacedClient
 from collector._exception import NetworkError, RetrieveUserError
@@ -167,10 +168,62 @@ class _FanboxPostClient(NamespacedClient[Fanbox]):
             raise err
         return Post.from_response(response.json().get("body"))
 
-    async def download_assets(
-        self, post_id: str, output_dir: str | PathLike, filter: str | None = None
-    ) -> None:
-        ...
+    async def iterate_by_creator(
+        self, creator_id: str, include_body: bool = False
+    ) -> AsyncIterator[Post]:
+        """Iterate all posts created by the specified creator.
+
+        Args:
+            creator_id (str):
+                The creator ID.
+            include_body (bool):
+                Whether to include the post body. Defaults to `False`. Note that
+                this will send additional requests to the server.
+
+        Yields:
+            Post:
+                The posts created by the creator.
+
+        Raises:
+            ValueError:
+                Raised when the creator is not found.
+        """
+        next_url: HttpUrl | None = None
+
+        while True:
+            params = {"creatorId": creator_id, "limit": 10}
+            if next_url is not None:
+                query_params = dict(next_url.query_params())
+                params |= query_params
+
+            try:
+                response = await self._session.get("post.listCreator", params=params)
+            except HTTPStatusError as err:
+                if err.response.status_code == 404:
+                    raise ValueError(f"Creator {creator_id} not found.") from err
+                raise err
+            else:
+                result = response.json().get("body")
+
+                async for post in self._get_posts(result, include_body):
+                    yield post
+
+                if url := result.get("nextUrl"):
+                    next_url = TypeAdapter(HttpUrl).validate_strings(url)
+                else:
+                    break
+
+    async def _get_posts(
+        self, result: dict[str, Any], include_body: bool
+    ) -> AsyncIterator[Post]:
+        if include_body:
+            tasks = [self.get(post["id"]) for post in result.get("items", [])]
+            for post in await asyncio.gather(*tasks):
+                if post is not None:
+                    yield post
+        else:
+            for post in result.get("items", []):
+                yield Post.from_response(post)
 
 
 class _FanboxPlanClient(NamespacedClient[Fanbox]):

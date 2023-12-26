@@ -14,12 +14,14 @@ from collector._base.post import PostBody, Segment
 from collector._base.utils import Price
 
 
-class DataModel(BaseModel):
+class Model(BaseModel):
     """The base models representing the data from subscription-based platforms."""
 
     id: str
 
-    model_config = ConfigDict(extra="ignore", arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        extra="ignore", arbitrary_types_allowed=True, populate_by_name=True
+    )
 
     @classmethod
     def from_response(cls, response: dict[str, Any]) -> Self:
@@ -30,12 +32,12 @@ class DataModel(BaseModel):
         return self.__module__.split(".")[1].capitalize()
 
 
-class User(DataModel):
+class User(Model):
     name: str
     avatar: HttpUrl
 
 
-class Creator(DataModel):
+class Creator(Model):
     name: str
     avatar: HttpUrl
     homepage: HttpUrl
@@ -47,7 +49,7 @@ class Creator(DataModel):
     is_member: bool
 
 
-class Membership(DataModel):
+class Membership(Model):
     name: str
     creator: str
     price: Price
@@ -55,15 +57,15 @@ class Membership(DataModel):
     description: str | None = Field(repr=False)
 
 
-class Comment(DataModel):
+class Comment(Model):
     ...
 
 
-class Tag(DataModel):
+class Tag(Model):
     ...
 
 
-class DirectMessage(DataModel):
+class DirectMessage(Model):
     creator: str
     sent_time: datetime
     updated_time: datetime | None = None
@@ -74,12 +76,14 @@ def _to_post_body(data: list[Segment]) -> "PostBody":
     return PostBody(data)
 
 
-class Post(DataModel):
+class Post(Model):
     title: str
     creator: str
-    body: Annotated[PostBody, BeforeValidator(_to_post_body)] = Field(repr=False)
+    body: Annotated[PostBody, BeforeValidator(_to_post_body)] = Field(
+        default=None, repr=False
+    )
     published_time: datetime
     updated_time: datetime | None = None
-    cover: HttpUrl | None = Field(repr=False)
+    cover: HttpUrl | None = Field(default=None, repr=False)
     is_privileged: bool
     is_nsfw: bool

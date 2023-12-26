@@ -69,47 +69,62 @@ class Post(base.Post):
     def _set_default_fields(cls, values: dict[str, Any]) -> dict[str, Any]:
         if "is_privileged" not in values:
             values["is_privileged"] = not values["isRestricted"]
+        if cover := values.get("cover"):
+            values["cover"] = cover["url"]
 
         return values
 
     @root_validator(pre=True)
     @classmethod
     def _build_body(cls, values: dict[str, Any]) -> dict[str, Any]:
-        try:
-            result = getattr(cls, f"_build_{values['type']}_body")(values["body"])
-        except AttributeError as err:
-            raise NotImplementedError(f"Unknown post type: {values['type']}") from err
+        if "body" in values:
+            try:
+                result = getattr(cls, f"_build_{values['type']}_body")(values["body"])
+            except AttributeError as err:
+                raise NotImplementedError(
+                    f"Unknown post type: {values['type']}"
+                ) from err
+            else:
+                values["body"] = result
 
-        values["body"] = result
         return values
 
     @staticmethod
     def _build_article_body(data: dict[str, Any]) -> list["Segment"]:
         result: list["Segment"] = []
 
+        def _format_text(data: dict[str, Any]) -> list["str | _Element"]:
+            result: list["str | _Element"] = []
+
+            if "style" in data:
+                text = data["text"]
+                current_index = 0
+
+                for style in data["style"]:
+                    result.append(text[current_index : style["offset"]])
+                    formatted = text[
+                        style["offset"] : style["offset"] + style["length"]
+                    ]
+
+                    match style["type"]:
+                        case "bold":
+                            result.append(E.b(formatted))
+                        case _:
+                            result.append(formatted)
+
+                    current_index = style["offset"] + style["length"]
+
+                if current_index < len(text):
+                    result.append(text[current_index:])
+            else:
+                result.append(data["text"])
+
+            return result
+
         for block in data["blocks"]:
             match block["type"]:
                 case "p":
-                    segments: list["str | _Element"] = []
-                    cur_string = block["text"]
-
-                    if "styles" in block:
-                        for style in block["styles"]:
-                            segments.append(cur_string[: style["offset"]])
-                            formatted = cur_string[
-                                style["offset"] : style["offset"] + style["length"]
-                            ]
-                            match style["type"]:
-                                case "bold":
-                                    segments.append(E.b(formatted))
-                                case _:
-                                    segments.append(formatted)
-
-                            cur_string = cur_string[style["offset"] + style["length"] :]
-                    else:
-                        segments.append(cur_string)
-
-                    result.append(Paragraph(text=E.p(*segments)))
+                    result.append(Paragraph(text=E.p(*_format_text(block))))
                 case "header":
                     result.append(Paragraph(text=E.h2(block["text"])))
                 case "url_embed":
@@ -138,7 +153,7 @@ class Post(base.Post):
                         )
                     )
                 case _:
-                    pass
+                    raise NotImplementedError(f"Unknown block type: {block['type']}")
 
         return result
 
