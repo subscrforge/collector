@@ -1,5 +1,4 @@
 """The client for pixivFANBOX."""
-
 import asyncio
 import json
 from collections.abc import AsyncIterator
@@ -37,8 +36,15 @@ class Fanbox(Client):
                 The user agent to use. Defaults to `None`.
             cache (bool | int | str):
                 Enable response caching.
+            follow_cache_control (bool):
+                Whether to follow the `Cache-Control` header in the response. If
+                `True`, the response will be cached only when the `Cache-Control`
+                header allows caching, otherwise the response will be cached forcibly.
+                Defaults to `False`.
             retries (int):
                 The maximum number of retries for each request.
+            rate_limit (str):
+                The rate limit of the requests. Defaults to `10 req/s`.
             **config (Any):
                 Additional configurations which will be directly passed to the
                 `httpx.AsyncClient` instance.
@@ -132,8 +138,40 @@ class _FanboxCreatorClient(NamespacedClient[Fanbox]):
         """
         return await self._base.plan.list_by_creator(creator_id)
 
+    async def iterate_posts(
+        self, creator_id: str, include_body: bool = False
+    ) -> AsyncIterator[Post]:
+        """Iterate all posts created by the specified creator.
+
+        This method is equivalent to `Fanbox.post.iterate_by_creator`.
+
+        Args:
+            creator_id (str):
+                The creator ID.
+            include_body (bool):
+                Whether to include the post body. Defaults to `False`.
+                Note that this will send additional requests to the server frequently.
+                It is recommended to set a proper rate limit to avoid receiving HTTP 429
+                errors from the server if enabled.
+
+        Yields:
+            Post:
+                The posts created by the creator.
+
+        Raises:
+            ValueError:
+                Raised when the creator is not found.
+        """
+        async for post in self._base.post.iterate_by_creator(
+            creator_id, include_body=include_body
+        ):
+            yield post
+
     async def iterate_newsletters(self, creator_id: str) -> AsyncIterator[Newsletter]:
         """Iterate all received newsletters sent by the specified creator.
+
+        This method is equivalent to filtering the result of
+        `Fanbox.newsletter.iterate_received`.
 
         Args:
             creator_id (str):
@@ -169,7 +207,7 @@ class _FanboxPostClient(NamespacedClient[Fanbox]):
         return Post.from_response(response.json().get("body"))
 
     async def iterate_by_creator(
-        self, creator_id: str, include_body: bool = False
+        self, creator_id: str, *, include_body: bool = False
     ) -> AsyncIterator[Post]:
         """Iterate all posts created by the specified creator.
 
@@ -177,8 +215,10 @@ class _FanboxPostClient(NamespacedClient[Fanbox]):
             creator_id (str):
                 The creator ID.
             include_body (bool):
-                Whether to include the post body. Defaults to `False`. Note that
-                this will send additional requests to the server.
+                Whether to include the post body. Defaults to `False`.
+                Note that this will send additional requests to the server frequently.
+                It is recommended to set a proper rate limit to avoid receiving HTTP 429
+                errors from the server if enabled.
 
         Yields:
             Post:

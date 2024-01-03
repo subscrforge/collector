@@ -1,17 +1,16 @@
 import abc
 import inspect
+from functools import partial
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Generic
 from typing_extensions import Self
 
-from hishel import AsyncCacheClient as AsyncClient
-from hishel import AsyncFileStorage
+from httpx import AsyncClient
 
-from collector._base.utils import EventHooks, T_Client
-from collector._constants import CACHE_DIR
+from collector._base._transport import ClientTransport
+from collector._base._utils import EventHooks, T_Client
 from collector._exception import NotConnectedError
 from collector._log import logger
-from collector._utils import parse_duration
 
 if TYPE_CHECKING:
     from collector._base.models import User
@@ -33,23 +32,43 @@ class Client(abc.ABC):
     caching.
     """
 
-    def __init__(self, cache: bool | int | str = True, **config: Any) -> None:
+    def __init__(
+        self,
+        cache: bool | int | str = True,
+        follow_cache_control: bool = False,
+        retries: int = 3,
+        rate_limit: str = "10 req/s",
+        **config: Any,
+    ) -> None:
         """Initialize the client.
 
         Args:
             cache (bool | int | str):
                 Enable response caching.
+            follow_cache_control (bool):
+                Whether to follow the `Cache-Control` header in the response. If
+                `True`, the response will be cached only when the `Cache-Control`
+                header allows caching, otherwise the response will be cached forcibly.
+                Defaults to `False`.
+            retries (int):
+                The maximum number of retries for each request. Defaults to `3`.
+            rate_limit (str):
+                The rate limit of the requests. Defaults to `10 req/s`.
             **config (Any):
                 Additional configurations which will be directly passed to the
                 `httpx.AsyncClient` instance.
         """
-        if isinstance(cache, bool):
-            self.__cache_max_age = 86400 if cache else 0
-        else:
-            self.__cache_max_age = parse_duration(cache)
+        _transport = partial(
+            ClientTransport,
+            cache=cache,
+            follow_cache_control=follow_cache_control,
+            retries=retries,
+            rate_limit=rate_limit,
+        )
 
-        if config.get("proxies"):
-            logger.debug(f"Using custom proxy: <u>{config['proxies']}</u>.")
+        if proxy := config.pop("proxy"):
+            logger.debug(f"Using custom proxy: <u>{proxy}</u>.")
+            config["transport"] = _transport(proxy=proxy)
 
         self.__config = config
 
@@ -85,7 +104,6 @@ class Client(abc.ABC):
     async def connect(self) -> None:
         """Connect to the client."""
         session = AsyncClient(
-            storage=AsyncFileStorage(base_path=CACHE_DIR, ttl=self.__cache_max_age),
             follow_redirects=True,
             event_hooks={
                 "request": EventHooks.on_request,

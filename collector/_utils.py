@@ -2,7 +2,7 @@ import re
 
 
 def parse_duration(duration: int | str) -> int:
-    """Parses a duration value to seconds.
+    """Parse a duration value to seconds.
 
     The duration can be an integer or a string. If the duration is an integer, it will
     be returned as is, otherwise it will be parsed to seconds with a pattern described
@@ -95,3 +95,49 @@ def _parse_duration_pattern(duration: str) -> int:
         result += base * multiplier
 
     return round(result)
+
+
+def parse_rate_limit(rate_limit: str) -> tuple[float, float]:
+    """Parse a rate limit value.
+
+    The valid format of the rate limit is a string formed by the maximum rate and the
+    period separated by a slash.
+
+    The maximum rate can be a floating-point number or an integer with an optional word
+    `requests` (or `req`, `request`, case-insensitive) at the end for the readability.
+    The period can be a time unit represented by a letter or a word (case-insensitive)
+    with an optional number (which defaults to 1). The supported time units are as
+    follows:
+
+    - `months` (or `month`)
+    - `weeks` (or `w`, `week`)
+    - `days` (or `d`, `day`)
+    - `hours` (or `h`, `hour`)
+    - `minutes` (or `m`, `min`, `minute`)
+    - `seconds` (or `s`, `sec`, `second`)
+
+    It can optionally separate the maximum rate and the period by whitespace.
+
+    Args:
+        rate_limit (str): The rate limit to parse.
+
+    Returns:
+        tuple[float, float]:
+            A tuple containing the maximum rate and the period in seconds.
+
+    Raises:
+        ValueError:
+            If cannot parse the maximum rate to a number or the period is invalid.
+
+    Example:
+        >>> parse_rate_limit("10 req/s")
+        (10.0, 1.0)
+        >>> parse_rate_limit("20/5 min")
+        (20.0, 300.0)
+        >>> parse_rate_limit("1 request / 2 seconds")
+        (1.0, 2.0)
+        >>> parse_rate_limit("5 requests/minute")
+        (5.0, 60.0)
+    """
+    max_rate, period = rate_limit.lower().split("/")
+    return float(max_rate.strip(" requests")), _parse_duration_pattern(period)

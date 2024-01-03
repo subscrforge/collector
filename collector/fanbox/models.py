@@ -1,5 +1,4 @@
 """The data models representing the data from pixivFANBOX."""
-
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 

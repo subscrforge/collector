@@ -1,7 +1,9 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Any
 from typing_extensions import Self
 
+from babel.numbers import format_currency
 from pydantic import (
     BaseModel,
     BeforeValidator,
@@ -11,7 +13,6 @@ from pydantic import (
 )
 
 from collector._base.post import PostBody, Segment
-from collector._base.utils import Price
 
 
 class Model(BaseModel):
@@ -52,7 +53,7 @@ class Creator(Model):
 class Membership(Model):
     name: str
     creator: str
-    price: Price
+    price: "Price"
     image: HttpUrl | None = Field(repr=False)
     description: str | None = Field(repr=False)
 
@@ -87,3 +88,68 @@ class Post(Model):
     cover: HttpUrl | None = Field(default=None, repr=False)
     is_privileged: bool
     is_nsfw: bool
+
+
+class Price(BaseModel):
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    value: Decimal = Field(decimal_places=2)
+
+    model_config = ConfigDict(frozen=True)
+
+    def __str__(self) -> str:
+        return format_currency(number=self.value, currency=self.currency)
+
+    def __eq__(self, other: Self) -> bool:
+        if self.currency != other.currency:
+            raise ValueError("Cannot compare prices with different currencies.")
+        return self.value == other.value
+
+    def __lt__(self, other: Self) -> bool:
+        if self.currency != other.currency:
+            raise ValueError("Cannot compare prices with different currencies.")
+        return self.value < other.value
+
+    def __add__(self, other: Self | float | Decimal) -> Self:
+        if isinstance(other, Price) and self.currency != other.currency:
+            raise ValueError("Cannot add prices with different currencies.")
+        return self.model_construct(
+            currency=self.currency,
+            value=(
+                self.value + other.value
+                if isinstance(other, Price)
+                else self.value + Decimal(other)
+            ),
+        )
+
+    def __radd__(self, other: Self | float | Decimal) -> Self:
+        return self + other
+
+    def __iadd__(self, other: Self | float | Decimal) -> Self:
+        return self + other
+
+    def __sub__(self, other: Self | float | Decimal) -> Self:
+        if isinstance(other, Price) and self.currency != other.currency:
+            raise ValueError("Cannot subtract prices with different currencies.")
+        return self.model_construct(
+            currency=self.currency,
+            value=(
+                self.value - other.value
+                if isinstance(other, Price)
+                else self.value - Decimal(other)
+            ),
+        )
+
+    def __rsub__(self, other: Self | float | Decimal) -> Self:
+        if isinstance(other, Price) and self.currency != other.currency:
+            raise ValueError("Cannot subtract prices with different currencies.")
+        return self.model_construct(
+            currency=self.currency,
+            value=(
+                other.value - self.value
+                if isinstance(other, Price)
+                else Decimal(other) - self.value
+            ),
+        )
+
+    def __isub__(self, other: Self | float | Decimal) -> Self:
+        return self - other
