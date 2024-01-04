@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Generic
 from typing_extensions import Self
 
 from httpx import AsyncClient
+from httpx._utils import get_environment_proxies
 
 from collector._base._transport import ClientTransport
 from collector._base._utils import EventHooks, T_Client
@@ -44,7 +45,15 @@ class Client(abc.ABC):
 
         Args:
             cache (bool | int | str):
-                Enable response caching.
+                Enable response caching. The value can be a boolean, an integer or a
+                string.
+                If it is a boolean, `True` means to enable the response caching
+                with a default cache max age of `86400` seconds (1 day), and `False`
+                means to disable the response caching.
+                If it is an integer, it means to enable the response caching with the
+                specified cache max age in seconds.
+                If it is a string, it means to enable the response caching with the
+                specified cache max age in a human-readable format.
             follow_cache_control (bool):
                 Whether to follow the `Cache-Control` header in the response. If
                 `True`, the response will be cached only when the `Cache-Control`
@@ -66,9 +75,14 @@ class Client(abc.ABC):
             rate_limit=rate_limit,
         )
 
-        if proxy := config.pop("proxy"):
+        if proxy := config.pop("proxy", None):
             logger.debug(f"Using custom proxy: <u>{proxy}</u>.")
             config["transport"] = _transport(proxy=proxy)
+        elif proxy_map := get_environment_proxies():
+            logger.debug("Using proxies from environment variables.")
+            config["mounts"] = {
+                pattern: _transport(proxy=proxy) for pattern, proxy in proxy_map.items()
+            }
 
         self.__config = config
 

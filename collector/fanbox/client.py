@@ -20,9 +20,13 @@ class Fanbox(Client):
     """The client for pixivFanbox."""
 
     creator: "_FanboxCreatorClient"
+    """The client for handling creator-related requests."""
     post: "_FanboxPostClient"
+    """The client for handling post-related requests."""
     plan: "_FanboxPlanClient"
+    """The client for handling membership-related requests."""
     newsletter: "_FanboxNewsletterClient"
+    """The client for handling newsletter-related requests."""
 
     def __init__(
         self, session_id: str, *, user_agent: str | None = None, **config
@@ -139,7 +143,7 @@ class _FanboxCreatorClient(NamespacedClient[Fanbox]):
         return await self._base.plan.list_by_creator(creator_id)
 
     async def iterate_posts(
-        self, creator_id: str, include_body: bool = False
+        self, creator_id: str, *, include_body: bool = False
     ) -> AsyncIterator[Post]:
         """Iterate all posts created by the specified creator.
 

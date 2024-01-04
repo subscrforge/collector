@@ -1,10 +1,15 @@
+from typing import TYPE_CHECKING
+
 import httpcore
 from aiolimiter import AsyncLimiter
 from hishel import AsyncCacheTransport, AsyncFileStorage, Controller
-from httpx import AsyncBaseTransport, AsyncHTTPTransport, Request, Response
+from httpx import AsyncBaseTransport, AsyncHTTPTransport
 
 from collector._constants import CACHE_DIR
 from collector._utils import parse_duration, parse_rate_limit
+
+if TYPE_CHECKING:
+    from httpx import Request, Response
 
 
 class ClientTransport(AsyncBaseTransport):
@@ -34,7 +39,7 @@ class ClientTransport(AsyncBaseTransport):
 
         self._limiter = AsyncLimiter(*parse_rate_limit(rate_limit))
 
-    async def handle_async_request(self, request: Request) -> Response:
+    async def handle_async_request(self, request: "Request") -> "Response":
         if not self._cache_max_age:
             request.extensions["cache_disabled"] = True
         elif self._force_cache:
