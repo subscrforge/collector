@@ -1,0 +1,49 @@
+[project]
+name = "subscrforge-collector"
+version = "0.1.0"
+description = "An API wrapper to collect data from various subscription-based platforms."
+authors = [{ name = "Satoshi Jek", email = "jks15satoshi@gmail.com" }]
+dependencies = [
+    "httpx[http2]>=0.25.2",
+    "pydantic>=2.5.2",
+    "loguru>=0.7.2",
+    "aiofile>=3.8.8",
+    "lxml>=4.9.3",
+    "babel>=2.13.1",
+    "hishel>=0.0.20",
+    "aiolimiter>=1.1.0",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "AGPL-3.0" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.1.6"]
+
+[tool.ruff]
+select = ["E", "W", "D", "F", "I", "UP", "C", "T", "PYI", "PT", "Q"]
+ignore = ["D105"]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.isort]
+extra-standard-library = ["typing_extensions"]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
